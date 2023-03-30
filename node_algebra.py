@@ -121,6 +121,24 @@ def seperate(nodes):
     return nodes_sep
 
 
+
+
+
+def ancestors(node):
+    '''
+    return the list of parent node of a node. 
+    e.g. 
+    
+    (0,(1,(4,9))) return [0,1,4,9].
+    
+    note that for (0,0) should return []
+    '''
+    if isinstance(node[1],int):
+        return [node[0]]
+    return [node[0]]+ancestors(node[1])
+    
+
+
 def parent(node):
     '''
     return the parent of a node.
@@ -138,7 +156,7 @@ def parent(node):
     return (node[0], cnode)
 
 
-def ancestors(node):
+def _ancestors(node):
     '''
     return the list of parent node of a node. 
     e.g. 

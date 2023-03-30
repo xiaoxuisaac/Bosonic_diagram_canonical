@@ -1155,7 +1155,8 @@ class Network():
                 
             
             new_nodes_map0 = {0:0}
-            ntwk_list = self.naddrs_dict_tree_sources[(tree.addr, source_addrs)]
+            ntwk_list = self._from_tree_sources_unidir(tree, source_addrs,
+                                                               self.is_even)
             for ntwk_pos in ntwk_list:
                 if Counter(children_addrs) == Counter(self.at(ntwk_pos).children_addrs):
                     
@@ -1182,7 +1183,7 @@ class Network():
         return ntwk.remove(new_nodes,new_nodes_map)
         
         
-        
+    
         
 
 class HusimiNetwork(Network):
@@ -1272,6 +1273,13 @@ class HusimiNetwork(Network):
         self._node_dict[node] = self.network.at_node(node).with_bond_at(new_bond_nodes)
     
         return self._node_dict[node]
+    
+    def addr_at_node(self, node):
+        direction = 1
+        node_naddr = self.network.addr_at_node(node)
+        if node_naddr == self.network.positive_addr(node_naddr):
+            direction = -1
+        return (self.at_node(node).network.addr, self.at_node(node).bond_nodes, direction)
     
     
     @property
@@ -1582,6 +1590,10 @@ class HusimiNetwork(Network):
         self._prefactors_virtual = {0:(0,[[0,0]])}
         self._prefactors_virtual_conj = {0:(0,[[0,0]])}
         
+        if self.is_resonant:
+            return self._prefactors_virtual
+        
+    
         dressing_nodes_configs = all_combinations(self.resonant_nodes)
         prefactors = {0:(0,[[0,0]])}
         
@@ -1591,6 +1603,8 @@ class HusimiNetwork(Network):
                 # print(dressing_nodes)
                 # continue
             bare_virtual = self.remove(dressing_nodes)
+            
+            overcounting = self.overcount_from_remove(dressing_nodes)
             
             #base case: bare_virtual is invalid.
             if bare_virtual.prefactors_no_top_dressing()[0][0] == 0:
@@ -1633,7 +1647,8 @@ class HusimiNetwork(Network):
                         
                     if factor_ops[0]!=0:
                         pf = prefactors[key][0]\
-                            +factor_ops[0]*direction*self.propag**len(ordered_dressing_nodes)
+                            +factor_ops[0]*direction\
+                                *self.propag**len(ordered_dressing_nodes)/overcounting
                         
                         prefactors[key] = (pf.expand(numr=True), factor_ops[1]) 
                     
@@ -1743,22 +1758,13 @@ class HusimiNetwork(Network):
         self._prefactors_exponential = {0:(0,[[0,0]])}
         self._prefactors_exponential_conj = {0:(0,[[0,0]])}
         
-        return self._prefactors_exponential
-        
-        # base case: contains no internal node besides the top.
-        if self.internal_nodes == []:
-            if self.is_resonant: 
-                return self._prefactors_exponential
-            else:
-                self._prefactors_exponential = self.prefactors_virtual()
-                self._prefactors_exponential_conj = self.prefactors_virtual(True)
-                return self.prefactors_virtual(conj)
-        
+        # return self._prefactors_exponential
         
             
         dressing_nodes_configs = all_combinations(self.internal_nodes)
+        
         dressing_nodes_configs.remove([])
-        prefactors = {0:(0,[[0,0]])}
+        prefactors = self.prefactors_virtual()
         
         directionality = 1
         if not self.is_resonant:
@@ -1766,6 +1772,11 @@ class HusimiNetwork(Network):
         
         # loop through each possible combination of the dressing nodes
         for dressing_nodes in dressing_nodes_configs:
+            if len(dressing_nodes) == 2:
+                continue
+            if self.network.taddr == 7 and dressing_nodes == [3]:
+                continue
+            
             first_dresser = self.remove(dressing_nodes)
             
             #base case: the first dresser in is invalid. first dresser needs to be off-resonant.
@@ -1773,7 +1784,8 @@ class HusimiNetwork(Network):
                 continue
             
             dresser_dict = self.get_dresser_dict(dressing_nodes)
-            
+            overcounting = self.overcount_from_remove(dressing_nodes)
+
             invalid_dresser = False
             #base case: dresser is invalid. 
             for node, dresser in dresser_dict.items():
@@ -1807,7 +1819,8 @@ class HusimiNetwork(Network):
                     
                     if factor_ops[0]!=0:
                         pf = prefactors[key][0]\
-                            +factor_ops[0]*directionality/math.factorial(len(dressing_nodes)+1)
+                            +factor_ops[0]*directionality\
+                                /math.factorial(len(dressing_nodes)+1)/overcounting
                         
                         prefactors[key] = (pf.expand(numr=True), factor_ops[1]) 
                     
@@ -1885,3 +1898,69 @@ class HusimiNetwork(Network):
         
         return ntwk.with_bond_at(new_bond_nodes)
         
+
+    def node_footprint(self, node):
+        '''
+        generate the footprint of a node. two nodes with the same footprint 
+        are interchangeble. 
+        e.g.
+        <-0r[1A,2A,<-3[4A,->5r[6A,7A*,8A*],->9 r[10A,11A*,12A*]],
+             <-13[14A,->15r[16A,17A*,18A*],->19r[20A,21A*,22A*]]]
+        node 5, 9, 15, 19 have the same footprint.
+        
+        Parameters
+        ----------
+        node : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        '''
+        
+        ancestors = nd_al.ancestors(self.network.extend_node(node))
+        footprint = []
+        for ancestor in ancestors:
+            footprint.append(self.addr_at_node(ancestor))
+        footprint.append(self.addr_at_node(node))
+        
+        return tuple(footprint)
+    
+    def overcount_from_remove(self, nodes):
+        '''
+        when computing the permutation factor in virtual excitation, each bond_node
+        is treated as unique. This assumption overcounts the bonds that connect to 
+        the same dresser. This function compute such overcounting factor
+
+        Parameters
+        ----------
+        nodes : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        '''
+        footprints = []
+        for node in nodes:
+            footprints.append(self.node_footprint(node))
+            
+        footprint_dict = Counter(footprints)
+        overcounting = 1
+        for i, count in footprint_dict.items():
+            overcounting *= math.factorial(count)
+        return overcounting
+            
+        
+            
+        
+            
+            
+            
+            
+            
+            
+            
+            
