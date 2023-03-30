@@ -1587,20 +1587,25 @@ class HusimiNetwork(Network):
         
         #loop through all possible 
         for dressing_nodes in dressing_nodes_configs:
-            # if len(dressing_nodes) > 2:
+            # if self.network.taddr == 12 and dressing_nodes ==[]:
+                # print(dressing_nodes)
                 # continue
             bare_virtual = self.remove(dressing_nodes)
             
             #base case: bare_virtual is invalid.
             if bare_virtual.prefactors_no_top_dressing()[0][0] == 0:
-                return self._prefactors_virtual
+                continue
             
             dresser_dict = self.get_dresser_dict(dressing_nodes)
             
+            valid = True
             #base case: dresser is invalid. always valid?
             for node, dresser in dresser_dict.items():
                 if dresser.prefactors_dAsK()[0][0] == 0:
-                    return self._prefactors_virtual
+                    valid = False
+                    break
+            if not valid:
+                continue
                 
             extended_dressing_nodes = self.network.extend_nodes(dressing_nodes)
             ordered_dressing_nodes_configs = self._generate_ordered_dressers(extended_dressing_nodes)
@@ -1634,17 +1639,17 @@ class HusimiNetwork(Network):
                     
             
             # construct the conjuage diagram.
-            self._prefactors_virtual = prefactors
-            prefactors_conj = {}
-            for i, (key, factor_ops) in enumerate(prefactors.items()):
-                prefactors_conj[key] = (factor_ops[0], self.ops_conj(factor_ops[1]))
-            
-            self._prefactors_virtual_conj = prefactors_conj
-            
-            if conj:
-                return self._prefactors_virtual_conj
-            else:
-                return self._prefactors_virtual
+        self._prefactors_virtual = prefactors
+        prefactors_conj = {}
+        for i, (key, factor_ops) in enumerate(prefactors.items()):
+            prefactors_conj[key] = (factor_ops[0], self.ops_conj(factor_ops[1]))
+        
+        self._prefactors_virtual_conj = prefactors_conj
+        
+        if conj:
+            return self._prefactors_virtual_conj
+        else:
+            return self._prefactors_virtual
 
 
     def get_dresser_dict(self, dressing_nodes):
