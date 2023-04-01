@@ -1038,7 +1038,6 @@ class Network():
     
     
     def separate_nodes_from(self, nodes, node):
-        # TODO, node is a source, i.e. node_number == 0
         upper_nodes = []
         lower_nodes = []
         node_number = self.at_node(node).node_number
@@ -1262,6 +1261,8 @@ class HusimiNetwork(Network):
         return self.network.is_resonant    
     
     def at_node(self, node):
+        if node == 0:
+            return self
         if "_node_dict" not in self.__dict__.keys():
             self._node_dict = {}
         
@@ -1594,7 +1595,9 @@ class HusimiNetwork(Network):
             return self._prefactors_virtual
         
     
-        dressing_nodes_configs = all_combinations(self.resonant_nodes)
+        # dressing_nodes_configs = all_combinations(self.resonant_nodes)
+        dressing_nodes_configs = self._generate_unordered_dressers(self.resonant_nodes)
+
         prefactors = {0:(0,[[0,0]])}
         
         #loop through all possible 
@@ -1603,14 +1606,15 @@ class HusimiNetwork(Network):
                 # print(dressing_nodes)
                 # continue
             bare_virtual = self.remove(dressing_nodes)
-            
-            overcounting = self.overcount_from_remove(dressing_nodes)
-            
+                        
             #base case: bare_virtual is invalid.
             if bare_virtual.prefactors_no_top_dressing()[0][0] == 0:
                 continue
             
             dresser_dict = self.get_dresser_dict(dressing_nodes)
+            
+            overcounting = self.get_overcounting(dresser_dict)
+            
             
             valid = True
             #base case: dresser is invalid. always valid?
@@ -1758,10 +1762,10 @@ class HusimiNetwork(Network):
         self._prefactors_exponential = {0:(0,[[0,0]])}
         self._prefactors_exponential_conj = {0:(0,[[0,0]])}
         
-        # return self._prefactors_exponential
+        return self._prefactors_exponential
         
             
-        dressing_nodes_configs = all_combinations(self.internal_nodes)
+        dressing_nodes_configs = self._generate_unordered_dressers(self.internal_nodes)
         
         dressing_nodes_configs.remove([])
         prefactors = self.prefactors_virtual()
@@ -1772,9 +1776,9 @@ class HusimiNetwork(Network):
         
         # loop through each possible combination of the dressing nodes
         for dressing_nodes in dressing_nodes_configs:
-            if len(dressing_nodes) == 2:
-                continue
-            if self.network.taddr == 7 and dressing_nodes == [3]:
+            # if len(dressing_nodes) == 2:
+                # continue
+            if self.network.taddr in [7,8] and len(dressing_nodes) == 1:
                 continue
             
             first_dresser = self.remove(dressing_nodes)
@@ -1784,7 +1788,7 @@ class HusimiNetwork(Network):
                 continue
             
             dresser_dict = self.get_dresser_dict(dressing_nodes)
-            overcounting = self.overcount_from_remove(dressing_nodes)
+            overcounting = self.get_overcounting(dressing_nodes)
 
             invalid_dresser = False
             #base case: dresser is invalid. 
@@ -1927,7 +1931,52 @@ class HusimiNetwork(Network):
         
         return tuple(footprint)
     
-    def overcount_from_remove(self, nodes):
+    def footprint(self, dressing_nodes):
+        '''
+        return a footprint of the HusimiNetwork with the dressing_nodes specified.
+
+        Parameters
+        ----------
+        dressing_nodes : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        '''
+        #TODO save in dictionary
+        counter = 1
+        footprint = []
+        for child_addr in self.children_addrs:
+            child = self.at_node(counter)
+            if len(child.children_addrs) == 0:
+                child_footprint = (child_addr[0], child_addr[2], child_addr[1])
+            else:            
+                dressing = 0
+                if counter in dressing_nodes:
+                    dressing = 1
+                _, child_dressing_nodes = self.separate_nodes_from(dressing_nodes, counter)
+                child_footprint = (child_addr[0], child_addr[2], dressing, 
+                                   child.footprint(child_dressing_nodes))
+            
+            footprint.append(child_footprint)
+            counter += child.node_number
+            
+        return tuple(sorted(footprint))
+    
+    def _generate_unordered_dressers(self, available_dressing_nodes):
+        configs = all_combinations(available_dressing_nodes)
+        configs_dict = {}
+        for dressing_nodes in configs:
+            footprint = self.footprint(dressing_nodes)
+            if footprint not in configs_dict:
+                configs_dict[footprint] = dressing_nodes
+        return list(configs_dict.values())
+        
+    
+    
+    def get_overcounting(self, dressers):
         '''
         when computing the permutation factor in virtual excitation, each bond_node
         is treated as unique. This assumption overcounts the bonds that connect to 
@@ -1943,22 +1992,43 @@ class HusimiNetwork(Network):
         None.
 
         '''
-        footprints = []
-        for node in nodes:
-            footprints.append(self.node_footprint(node))
-            
-        footprint_dict = Counter(footprints)
         overcounting = 1
-        for i, count in footprint_dict.items():
-            overcounting *= math.factorial(count)
-        return overcounting
+        for node in [0]+self.internal_nodes:
             
+            child = self.at_node(node)
+            if len(child.bond_nodes) != 0:
+                continue
+            
+            
+            _, bottom_dressers = self.separate_nodes_from(dressers,node)
+            overcounting *= child._get_overcounting_top_node(bottom_dressers)
+                    
+                
         
-            
         
+        return 1
+    
+    
+    def _get_overcounting_top_node(self, dressing_nodes):
+        if len(dressing_nodes) == 0:
+            return 1
+        counter = 1
+        child_footprints = []
+        for child_addr in self.children_addrs:
+            child = self.at_node(counter)
+            _, child_dressing_nodes = self.separate_nodes_from(dressing_nodes, counter)
+            child_footprint = (child_addr[0], child_addr[2], 
+                               child.footprint(child_dressing_nodes))
+            counter += child.node_number
+            if len(dressing_nodes) != 0:
+                child_footprints.append(child_footprint)
+        dressed_child_dict = Counter(child_footprints)
+        for i in dressed_child_dict.values():
+            counter *= math.factorial(i)
+        return counter
             
             
-            
+    
             
             
             
