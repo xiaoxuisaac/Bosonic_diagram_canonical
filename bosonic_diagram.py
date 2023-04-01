@@ -1613,7 +1613,7 @@ class HusimiNetwork(Network):
             
             dresser_dict = self.get_dresser_dict(dressing_nodes)
             
-            overcounting = self.get_overcounting(dresser_dict)
+            overcounting = self.get_overcounting(dressing_nodes)
             
             
             valid = True
@@ -1762,7 +1762,7 @@ class HusimiNetwork(Network):
         self._prefactors_exponential = {0:(0,[[0,0]])}
         self._prefactors_exponential_conj = {0:(0,[[0,0]])}
         
-        return self._prefactors_exponential
+        # return self._prefactors_exponential
         
             
         dressing_nodes_configs = self._generate_unordered_dressers(self.internal_nodes)
@@ -1778,8 +1778,8 @@ class HusimiNetwork(Network):
         for dressing_nodes in dressing_nodes_configs:
             # if len(dressing_nodes) == 2:
                 # continue
-            if self.network.taddr in [7,8] and len(dressing_nodes) == 1:
-                continue
+            # if self.network.taddr in [7,8] and len(dressing_nodes) == 1:
+                # continue
             
             first_dresser = self.remove(dressing_nodes)
             
@@ -2006,7 +2006,7 @@ class HusimiNetwork(Network):
                 
         
         
-        return 1
+        return overcounting
     
     
     def _get_overcounting_top_node(self, dressing_nodes):
@@ -2019,13 +2019,16 @@ class HusimiNetwork(Network):
             _, child_dressing_nodes = self.separate_nodes_from(dressing_nodes, counter)
             child_footprint = (child_addr[0], child_addr[2], 
                                child.footprint(child_dressing_nodes))
-            counter += child.node_number
-            if len(dressing_nodes) != 0:
+            if len(child_dressing_nodes) != 0 or counter in dressing_nodes:
                 child_footprints.append(child_footprint)
+                
+            counter += child.node_number
+
         dressed_child_dict = Counter(child_footprints)
+        overcounting = 1
         for i in dressed_child_dict.values():
-            counter *= math.factorial(i)
-        return counter
+            overcounting *= math.factorial(i)
+        return overcounting
             
             
     
