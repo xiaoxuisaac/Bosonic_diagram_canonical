@@ -1376,15 +1376,16 @@ class HusimiNetwork(Network):
         '''
         if "_prefactors_dAsK" in self.__dict__.keys():
             if conj:
-                return self._prefactors_dAsK_conj
+                return self._prefactors_dAsK_conj.copy()
             else:                
-                return self._prefactors_dAsK
+                return self._prefactors_dAsK.copy()
         
         # no top Sta(\eta) term
         prefactors = self.prefactors_no_top_dressing()
         
         
         for node in self.resonant_nodes:
+            continue
             # loop through each possible break point of top Sta(eta) term
             top_sta_eta = self.remove([node])
             
@@ -1418,9 +1419,9 @@ class HusimiNetwork(Network):
             
         self._prefactors_dAsK_conj = prefactors_conj
         if conj:
-            return self._prefactors_dAsK_conj
+            return self._prefactors_dAsK_conj.copy()
         else:
-            return self._prefactors_dAsK
+            return self._prefactors_dAsK.copy()
     
     
     #### computing the network with no dressing to top node
@@ -1442,9 +1443,9 @@ class HusimiNetwork(Network):
         
         if "_prefactors_no_top_dressing" in self.__dict__.keys():
             if conj:
-                return self._prefactors_no_top_dressing_conj
+                return self._prefactors_no_top_dressing_conj.copy()
             else:
-                return self._prefactors_no_top_dressing
+                return self._prefactors_no_top_dressing.copy()
               
         self._prefactors_no_top_dressing = {0:(0,[[0,0]])}
         self._prefactors_no_top_dressing_conj = {0:(0,[[0,0]])}
@@ -1466,7 +1467,7 @@ class HusimiNetwork(Network):
         # the child is an incoming oscillato excitation
         if self.is_resonant and len(self.children_addrs)==1\
             and self.children_addrs[0][0].addr != (0,1):
-                return self._prefactors_no_top_dressing
+                return self._prefactors_no_top_dressing.copy()
         
         
         
@@ -1475,7 +1476,7 @@ class HusimiNetwork(Network):
             child = self.at(child_addr)
             child_prefactors =  child.prefactors_input(child_addr[2]==-1)
             if child_prefactors[0][0] == 0: # classical component is zero
-                return self._prefactors_no_top_dressing
+                return self._prefactors_no_top_dressing.copy()
         
             
         # recursive case
@@ -1511,9 +1512,9 @@ class HusimiNetwork(Network):
         self._prefactors_no_top_dressing_conj = prefactors_conj
             
         if conj:
-            return self._prefactors_no_top_dressing_conj
+            return self._prefactors_no_top_dressing_conj.copy()
         else:
-            return self._prefactors_no_top_dressing
+            return self._prefactors_no_top_dressing.copy()
     
     @property
     def multiplicity_from_bonds(self):
@@ -1581,18 +1582,22 @@ class HusimiNetwork(Network):
             DESCRIPTION.
 
         '''
+        
         if "_prefactors_virtual" in self.__dict__.keys():
+            # if self.network.addr == (5,12):
+               # print('here')
+               # print(self._prefactors_virtual)
             if conj:
                 return self._prefactors_virtual_conj
             else:
-                return self._prefactors_virtual
+                return self._prefactors_virtual.copy()
             
             
         self._prefactors_virtual = {0:(0,[[0,0]])}
         self._prefactors_virtual_conj = {0:(0,[[0,0]])}
         
         if self.is_resonant:
-            return self._prefactors_virtual
+            return self._prefactors_virtual.copy()
         
     
         # dressing_nodes_configs = all_combinations(self.resonant_nodes)
@@ -1666,9 +1671,9 @@ class HusimiNetwork(Network):
         self._prefactors_virtual_conj = prefactors_conj
         
         if conj:
-            return self._prefactors_virtual_conj
+            return self._prefactors_virtual_conj.copy()
         else:
-            return self._prefactors_virtual
+            return self._prefactors_virtual.copy()
 
 
     def get_dresser_dict(self, dressing_nodes):
@@ -1755,9 +1760,9 @@ class HusimiNetwork(Network):
         '''
         if "_prefactors_exponential" in self.__dict__.keys():
             if conj:
-                return self._prefactors_exponential_conj
+                return self._prefactors_exponential_conj.copy()
             else:
-                return self._prefactors_exponential
+                return self._prefactors_exponential.copy()
             
         self._prefactors_exponential = {0:(0,[[0,0]])}
         self._prefactors_exponential_conj = {0:(0,[[0,0]])}
@@ -1778,7 +1783,8 @@ class HusimiNetwork(Network):
         for dressing_nodes in dressing_nodes_configs:
             # if len(dressing_nodes) == 2:
                 # continue
-            # if self.network.taddr in [7,8] and len(dressing_nodes) == 1:
+            # if (self.network.taddr in [12,13]) and self.is_resonant:
+                # print(self)
                 # continue
             
             first_dresser = self.remove(dressing_nodes)
@@ -1838,9 +1844,9 @@ class HusimiNetwork(Network):
         self._prefactors_exponential_conj = prefactors_conj
         
         if conj:
-            return self._prefactors_exponential_conj
+            return self._prefactors_exponential_conj.copy()
         else:
-            return self._prefactors_exponential
+            return self._prefactors_exponential.copy()
         
     
     
