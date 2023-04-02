@@ -164,7 +164,7 @@ class Tree():
         self.__class__.all_trees.append(self)
         self.children_addrs = sorted(children_addrs)
         self.leaves_count = leaves_count
-        self.delta_count = 0
+        self.delta_count = delta_count
 
 
 
@@ -191,7 +191,7 @@ class Tree():
             trees_delta = cls._have_leaves(n, even_case, deltas - 1)
             trees = []
             for tree in trees_delta:
-                trees.append(Tree([tree], n).addr)
+                trees.append(Tree([tree], n, deltas).addr)
             cls.leaves_delta_dict[(n,deltas)] += trees
             
         for k in range(2, n+1)[::-1]:
@@ -261,7 +261,7 @@ class Tree():
 
         if scope == None:
             if leaves_count == 0:
-                delta_count = 0
+                delta_count = 1 if  len(addrs)==1 else 0
                 for addr in addrs:
                     leaves_count += cls.at(addr).leaves_count
                     delta_count += cls.at(addr).delta_count
@@ -1159,7 +1159,7 @@ class Network():
                 
             
             new_nodes_map0 = {0:0}
-            ntwk_list = self._from_tree_sources_unidir(tree, source_addrs,
+            ntwk_list = self._from_tree_sources_unidir(tree, list(source_addrs),
                                                                self.is_even)
             for ntwk_pos in ntwk_list:
                 if Counter(children_addrs) == Counter(self.at(ntwk_pos).children_addrs):
@@ -1401,30 +1401,39 @@ class HusimiNetwork(Network):
             
         
         for node in resonant_nodes:
-            # continue
+            
             # loop through each possible break point of top Sta(eta) term
             top_sta_eta = self.remove([node])
             
-            # if len(top_sta_eta.internal_nodes)!=2:
-                # continue
+            
             
             bottom_dAsk = self.at_node(node)
             bottom_naddr = self.network.addr_at_node(node)
-            
             bottom_addr_abs = self.network.positive_addr(bottom_naddr)
             direction = 1
             if bottom_addr_abs == bottom_naddr:
                 direction = -1
                 previous_factors_ops = star_factor_ops(top_sta_eta.prefactors_exponential(),
                                                        bottom_dAsk.prefactors_dAsK(False),1)
-                # previous_factors_ops = {0:(0,[[0,0]])}
             else:
                 previous_factors_ops = star_factor_ops(bottom_dAsk.prefactors_dAsK(True),
                                                        top_sta_eta.prefactors_exponential(),1)
             
-                # previous_factors_ops = top_sta_eta.prefactors_exponential()
-                # print(top_sta_eta,top_sta_eta.network.addr,  previous_factors_ops[0][0])
-                # print(top_sta_eta.network.with_bond_at().prefactors_exponential()[0][0])
+            
+            #if top_sta_eta is a delta, then the bottom_dAsk is a sta_eta instead
+            if top_sta_eta.network.children_addrs == [(0,1)]:
+                direction = 1
+                # previous_factors_ops is 0 from above calculation
+                for i, (key, factor_ops) in enumerate(bottom_dAsk.prefactors_exponential().items()):
+                    if (not key in previous_factors_ops) and factor_ops[0]!=0: 
+                        previous_factors_ops[key] = (0,factor_ops[1])
+                    if factor_ops[0]!=0:
+                        pf = previous_factors_ops[key][0] \
+                            + factor_ops[0]*top_sta_eta.mixing_strength
+                        
+                        previous_factors_ops[key] = (pf.expand(numr=True), factor_ops[1]) 
+
+                
                 
             for i, (key, factor_ops) in enumerate(previous_factors_ops.items()):
                 if (not key in prefactors) and factor_ops[0]!=0: 
@@ -1490,7 +1499,7 @@ class HusimiNetwork(Network):
         # if the network is resonant, the  it cannot be a delta diagram unless 
         # the child is an incoming oscillato excitation
         if self.is_resonant and len(self.children_addrs)==1\
-            and self.children_addrs[0][0].addr != (0,1):
+            and self.children_addrs[0][0] != (0,1):
                 return self._prefactors_no_top_dressing.copy()
         
         
