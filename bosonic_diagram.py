@@ -136,6 +136,11 @@ def _star_prod(l_power, r_power, star_order):
     
     return power, int(count)
 
+def prefactors_is_zero(prefactors):
+    for factors in prefactors.values():
+        if factors[0] != 0:
+            return False
+    return True
 
 
 class Tree():
@@ -1494,7 +1499,7 @@ class HusimiNetwork(Network):
         for child_addr in self.children_addrs:
             child = self.at(child_addr)
             child_prefactors =  child.prefactors_input(child_addr[2]==-1)
-            if child_prefactors[0][0] == 0: # classical component is zero
+            if prefactors_is_zero(child_prefactors): # classical component is zero
                 return self._prefactors_no_top_dressing.copy()
         
             
@@ -1507,7 +1512,7 @@ class HusimiNetwork(Network):
                 child = self.at(child_addr)
                 permutation_factors_ops = child.prefactors_input(child_addr[2] == -1)
                 previous_factors_ops = star_factor_ops(previous_factors_ops, permutation_factors_ops)
-                if previous_factors_ops[0][0] == 0:
+                if prefactors_is_zero(previous_factors_ops):
                     break
                 
             for i, (key, factor_ops) in enumerate(previous_factors_ops.items()):
@@ -1603,9 +1608,7 @@ class HusimiNetwork(Network):
         '''
         
         if "_prefactors_virtual" in self.__dict__.keys():
-            # if self.network.addr == (5,12):
-               # print('here')
-               # print(self._prefactors_virtual)
+
             if conj:
                 return self._prefactors_virtual_conj
             else:
@@ -1626,13 +1629,14 @@ class HusimiNetwork(Network):
         
         #loop through all possible 
         for dressing_nodes in dressing_nodes_configs:
-            # if self.network.taddr == 12 and dressing_nodes ==[]:
-                # print(dressing_nodes)
+            
+            # if dressing_nodes != [6] and self.network.taddr == 12:
                 # continue
+            
             bare_virtual = self.remove(dressing_nodes)
                         
             #base case: bare_virtual is invalid.
-            if bare_virtual.prefactors_no_top_dressing()[0][0] == 0:
+            if prefactors_is_zero(bare_virtual.prefactors_no_top_dressing()):
                 continue
             
             dresser_dict = self.get_dresser_dict(dressing_nodes)
@@ -1643,7 +1647,7 @@ class HusimiNetwork(Network):
             valid = True
             #base case: dresser is invalid. always valid?
             for node, dresser in dresser_dict.items():
-                if dresser.prefactors_dAsK()[0][0] == 0:
+                if prefactors_is_zero(dresser.prefactors_dAsK()):
                     valid = False
                     break
             if not valid:
@@ -1804,7 +1808,7 @@ class HusimiNetwork(Network):
             first_dresser = self.remove(dressing_nodes)
             
             #base case: the first dresser in is invalid. first dresser needs to be off-resonant.
-            if first_dresser.is_resonant or first_dresser.prefactors_exponential()[0][0] == 0:
+            if first_dresser.is_resonant or prefactors_is_zero(first_dresser.prefactors_exponential()):
                 continue
             
             dresser_dict = self.get_dresser_dict(dressing_nodes)
@@ -1813,7 +1817,7 @@ class HusimiNetwork(Network):
             invalid_dresser = False
             #base case: dresser is invalid. 
             for node, dresser in dresser_dict.items():
-                if dresser.is_resonant or dresser.prefactors_exponential()[0][0] == 0:
+                if dresser.is_resonant or prefactors_is_zero(dresser.prefactors_exponential()):
                     invalid_dresser = True
                     break
             if invalid_dresser:
