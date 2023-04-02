@@ -1383,11 +1383,25 @@ class HusimiNetwork(Network):
         # no top Sta(\eta) term
         prefactors = self.prefactors_no_top_dressing()
         
+        resonant_nodes = []
+        for node in self._generate_unordered_dressers(self.resonant_nodes):
+            if len(node) == 1:
+                resonant_nodes.append(node[0])
+                
+        # if resonant_nodes != self.resonant_nodes:
+            # print(self,resonant_nodes,self.resonant_nodes)
         
-        for node in self.resonant_nodes:
-            continue
+        # if self.network.taddr in [17,18,20,21]:
+            # prefactors = {0:(0,[[0,0]])}
+            
+        
+        for node in resonant_nodes:
+            # continue
             # loop through each possible break point of top Sta(eta) term
             top_sta_eta = self.remove([node])
+            
+            # if len(top_sta_eta.internal_nodes)!=2:
+                # continue
             
             bottom_dAsk = self.at_node(node)
             bottom_naddr = self.network.addr_at_node(node)
@@ -1398,10 +1412,15 @@ class HusimiNetwork(Network):
                 direction = -1
                 previous_factors_ops = star_factor_ops(top_sta_eta.prefactors_exponential(),
                                                        bottom_dAsk.prefactors_dAsK(False),1)
+                # previous_factors_ops = {0:(0,[[0,0]])}
             else:
                 previous_factors_ops = star_factor_ops(bottom_dAsk.prefactors_dAsK(True),
                                                        top_sta_eta.prefactors_exponential(),1)
-                    
+            
+                # previous_factors_ops = top_sta_eta.prefactors_exponential()
+                # print(top_sta_eta,top_sta_eta.network.addr,  previous_factors_ops[0][0])
+                # print(top_sta_eta.network.with_bond_at().prefactors_exponential()[0][0])
+                
             for i, (key, factor_ops) in enumerate(previous_factors_ops.items()):
                 if (not key in prefactors) and factor_ops[0]!=0: 
                     prefactors[key] = (0,factor_ops[1])
@@ -1781,11 +1800,6 @@ class HusimiNetwork(Network):
         
         # loop through each possible combination of the dressing nodes
         for dressing_nodes in dressing_nodes_configs:
-            # if len(dressing_nodes) == 2:
-                # continue
-            # if (self.network.taddr in [12,13]) and self.is_resonant:
-                # print(self)
-                # continue
             
             first_dresser = self.remove(dressing_nodes)
             
@@ -1992,6 +2006,8 @@ class HusimiNetwork(Network):
         ----------
         nodes : TYPE
             DESCRIPTION.
+        escape_bond : list
+            contain the bond_node 
 
         Returns
         -------
@@ -2002,9 +2018,6 @@ class HusimiNetwork(Network):
         for node in [0]+self.internal_nodes:
             
             child = self.at_node(node)
-            if len(child.bond_nodes) != 0:
-                continue
-            
             
             _, bottom_dressers = self.separate_nodes_from(dressers,node)
             overcounting *= child._get_overcounting_top_node(bottom_dressers)
@@ -2026,7 +2039,8 @@ class HusimiNetwork(Network):
             child_footprint = (child_addr[0], child_addr[2], 
                                child.footprint(child_dressing_nodes))
             if len(child_dressing_nodes) != 0 or counter in dressing_nodes:
-                child_footprints.append(child_footprint)
+                if len(child.bond_nodes)==0:
+                    child_footprints.append(child_footprint)
                 
             counter += child.node_number
 
