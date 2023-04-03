@@ -364,10 +364,6 @@ class Network():
         ''' Create an instance if it doesnt exist
         TODO: This is not needed.
         '''
-        # if taddr in cls.all_networks.keys():
-            # for network in cls.all_networks[taddr]:
-                # if Counter(children_addrs) == Counter(network.children_addrs):
-                    # return network
 
         return cls(taddr, children_addrs, sources_addrs, freq)
 
@@ -453,6 +449,7 @@ class Network():
     def set_mixer(cls, mixing_strengths):
         cls.mixers = mixing_strengths
     #### properties
+
 
     @property
     def addr(self):
@@ -1581,9 +1578,9 @@ class HusimiNetwork(Network):
         if i == 0:
             self._mixing_strength  = 1
         elif i == 1:
-            self._mixing_strength = self.mixers.get(i+1, Symbol('\delta'))
+            self._mixing_strength = self.network.mixers.get(i+1, Symbol('\delta'))
         else:
-            self._mixing_strength = self.mixers.get(i+1, Symbol(f'g_{i+1}'))
+            self._mixing_strength = self.network.mixers.get(i+1, Symbol(f'g_{i+1}'))
         return self._mixing_strength
     
     
