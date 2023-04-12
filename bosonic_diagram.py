@@ -4,7 +4,7 @@ from copy import deepcopy
 from collections import Counter
 import itertools
 from more_itertools import distinct_permutations
-from sympy import Symbol, Rational, Mul
+from sympy import Symbol, Rational, Mul, S, Add
 from sympy import prod, factorial
 from sympy import flatten
 from sympy import integrate
@@ -95,7 +95,7 @@ def index_mapping(lst1, lst2):
    return result
 
 def star_factor_ops(factors_ops_dict1, factors_ops_dict2, offset = 0):
-    
+    # print(factors_ops_dict1, factors_ops_dict2)
     factors_ops_dict = {}
     for i, (hbar1, factor_ops1) in enumerate(factors_ops_dict1.items()):
         for j, (hbar2, factor_ops2) in enumerate(factors_ops_dict2.items()):
@@ -115,6 +115,8 @@ def star_factor_ops(factors_ops_dict1, factors_ops_dict2, offset = 0):
                 factors_ops_dict[hbar] = old_factor_ops 
                 
     return factors_ops_dict
+
+    
 
 star_prod_dict = {}
 def _star_prod(l_power, r_power, star_order):
@@ -142,6 +144,25 @@ def prefactors_is_zero(prefactors):
             return False
     return True
 
+def expand_numer(expr):
+    if isinstance(expr, (int, float)):
+        return expr
+    if isinstance(expr, Add):
+        s = S(0)
+        for summand in expr.args:
+            s += summand.expand(numer = True)
+        return s
+    return expr.expand(numer = True)
+
+def factor_denom(expr):
+    if isinstance(expr, (int, float)):
+        return expr
+    if isinstance(expr, Add):
+        s = S(0)
+        for summand in expr.args:
+            s += summand.factor()
+        return s
+    return expr
 
 class Tree():
     counter = 0 # unique id
@@ -531,7 +552,6 @@ class Network():
         '''
         returns all the networks given the sources
         '''
-        #TODO: make the even case more elegent
         cls.is_even = even_case
         
         # sources_addrs = 0
@@ -1009,14 +1029,52 @@ class Network():
         else:
             prefactors =  husimi_network.prefactors_virtual()
             
-        expression = 0
+        expression = S(0)
         for bonds in prefactors:
             expression += prefactors[bonds][0]*self.sources_prod(bonds)
+        
+        expression *= self.mixing_strengths
             
-        return expression
-            
+        return factor_denom(expression.expand(numer = True))
     
+    def expression_no_cache(self):
+        '''
+        a wrapper function
+        return the expression of the network by treating it as a $Rot(\eta)$
+        or a $\partial_{A^*}K$ network. 
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        '''
+        husimi_network = self.with_bond_at()
+        
+        if self.is_resonant:
+            prefactors = husimi_network.prefactors_dAsK()
+        else:
+            prefactors =  husimi_network.prefactors_virtual()
+            
+        expression = S(0)
+        for bonds in prefactors:
+            expression += prefactors[bonds][0]*self.sources_prod(bonds)
+        
+        expression *= self.mixing_strengths
+            
+        return expression#.expand(numer = True)
+    
+            
+    sources_prod_dict = {}
     def sources_prod(self, bonds):
+        sources_addrs = tuple(self.sources_addrs)
+        if sources_addrs in self.sources_prod_dict:
+            if bonds in self.sources_prod_dict[sources_addrs]:
+                return self.sources_prod_dict[sources_addrs][bonds]
+        else:
+            self.sources_prod_dict[sources_addrs] = {}
+        
+        
         p = 1
         for addr in self.sources_addrs:
             p *= self.X0[addr][1]
@@ -1024,6 +1082,7 @@ class Network():
         p /= self.modes[0][0]**bonds*self.modes[0][1]**bonds
         p *= self.commutator**bonds
         
+        self.sources_prod_dict[sources_addrs][bonds] = p
         return p
         
     
@@ -1035,6 +1094,32 @@ class Network():
             self._husimi_networks[bond_nodes] = HusimiNetwork(self, bond_nodes)
         return self._husimi_networks[bond_nodes] 
         
+        
+    @property
+    def mixing_strength(self):
+        if '_mixing_strength' in self.__dict__:
+            return self._mixing_strength
+        i = len(self.children_addrs)
+        if i == 0:
+            self._mixing_strength  = 1
+        elif i == 1:
+            self._mixing_strength = self.mixers.get(i+1, Symbol('\delta'))
+        else:
+            self._mixing_strength = self.mixers.get(i+1, Symbol(f'g_{i+1}'))
+        return self._mixing_strength
+
+
+    @property
+    def mixing_strengths(self):
+        if '_mixing_strengths' in self.__dict__:
+            return self._mixing_strengths
+        else:
+            self._mixing_strengths = self.mixing_strength
+            for addr in self.children_addrs:
+                if addr != self.positive_addr(addr):
+                    addr = self.conj_addr(addr)
+                self._mixing_strengths *= self.at(addr).mixing_strengths
+        return self._mixing_strengths
         
     #### node removing
     
@@ -1242,25 +1327,45 @@ class HusimiNetwork(Network):
 
         return self._propag
     
-    @property 
-    def node_number(self):
-        return self.network.node_number
-    
     @property
+    def node_number(self):
+        '''
+        return the number of node including the root one
+
+        '''
+        if '_node_number' in self.__dict__.keys():
+            return self._node_number
+        self._node_number = self.network.node_number 
+        return self._node_number
+        
+    
+    @property 
     def freq(self):
-        return self.network.freq
+        if '_freq' in self.__dict__.keys():
+            return self._freq
+        self._freq = self.network.freq 
+        return self._freq  
     
     @property 
     def resonant_nodes(self):
-        return self.network.resonant_nodes
+        if '_resonant_nodes' in self.__dict__.keys():
+            return self._resonant_nodes
+        self._resonant_nodes = self.network.resonant_nodes 
+        return self._resonant_nodes  
     
     @property 
     def internal_nodes(self):
-        return self.network.internal_nodes
+        if '_internal_nodes' in self.__dict__.keys():
+            return self._internal_nodes
+        self._internal_nodes = self.network.internal_nodes 
+        return self._internal_nodes  
 
     @property 
     def is_resonant(self):
-        return self.network.is_resonant    
+        if '_is_resonant' in self.__dict__.keys():
+            return self._is_resonant
+        self._is_resonant = self.network.is_resonant 
+        return self._is_resonant  
     
     def at_node(self, node):
         if node == 0:
@@ -1390,18 +1495,11 @@ class HusimiNetwork(Network):
             if len(node) == 1:
                 resonant_nodes.append(node[0])
                 
-        # if resonant_nodes != self.resonant_nodes:
-            # print(self,resonant_nodes,self.resonant_nodes)
-        
-        # if self.network.taddr in [17,18,20,21]:
-            # prefactors = {0:(0,[[0,0]])}
-            
         
         for node in resonant_nodes:
             
             # loop through each possible break point of top Sta(eta) term
             top_sta_eta = self.remove([node])
-            
             
             
             bottom_dAsk = self.at_node(node)
@@ -1426,9 +1524,9 @@ class HusimiNetwork(Network):
                         previous_factors_ops[key] = (0,factor_ops[1])
                     if factor_ops[0]!=0:
                         pf = previous_factors_ops[key][0] \
-                            + factor_ops[0]*top_sta_eta.mixing_strength
+                            + factor_ops[0]
                         
-                        previous_factors_ops[key] = (pf.expand(numr=True), factor_ops[1]) 
+                        previous_factors_ops[key] = (pf, factor_ops[1]) 
 
                 
                 
@@ -1439,7 +1537,7 @@ class HusimiNetwork(Network):
                 if factor_ops[0]!=0:
                     pf = prefactors[key][0] + factor_ops[0]*direction
                     
-                    prefactors[key] = (pf.expand(numr=True), factor_ops[1]) 
+                    prefactors[key] = (pf, factor_ops[1]) 
 
         # construct the conjuage diagram.
         self._prefactors_dAsK = prefactors
@@ -1486,7 +1584,7 @@ class HusimiNetwork(Network):
             s = self.X0[self.sources_addrs[0]]
             if s[0] and 0 not in self.bond_nodes:
                 power[s[3]][0] = 1
-            prefactors = {0:(1,power)}
+            prefactors = {0:(S(1),power)}
         else:
             prefactors = {0:(0,[[0,0]])}
             
@@ -1513,7 +1611,7 @@ class HusimiNetwork(Network):
         children_permuted = self.children_permuted
         for children_addrs in children_permuted:
             # TODO: multimode
-            previous_factors_ops = {0:(1,[[0,0]])}
+            previous_factors_ops = {0:(S(1),[[0,0]])}
             for child_addr in children_addrs:
                 child = self.at(child_addr)
                 permutation_factors_ops = child.prefactors_input(child_addr[2] == -1)
@@ -1528,9 +1626,9 @@ class HusimiNetwork(Network):
                     
                 if factor_ops[0]!=0:
                     pf = prefactors[key][0]\
-                        +factor_ops[0]*self.multiplicity_from_bonds*self.propag*self.mixing_strength
+                        +factor_ops[0]*self.multiplicity_from_bonds*self.propag
                     
-                    prefactors[key] = (pf.expand(numr=True), factor_ops[1])
+                    prefactors[key] = (pf, factor_ops[1])
             
 
 
@@ -1569,19 +1667,6 @@ class HusimiNetwork(Network):
                 factor *= math.factorial(c)
         
         return factor
-    
-    @property
-    def mixing_strength(self):
-        if '_mixing_strength' in self.__dict__:
-            return self._mixing_strength
-        i = len(self.children_addrs)
-        if i == 0:
-            self._mixing_strength  = 1
-        elif i == 1:
-            self._mixing_strength = self.network.mixers.get(i+1, Symbol('\delta'))
-        else:
-            self._mixing_strength = self.network.mixers.get(i+1, Symbol(f'g_{i+1}'))
-        return self._mixing_strength
     
     
     @property
@@ -1688,7 +1773,7 @@ class HusimiNetwork(Network):
                             +factor_ops[0]*direction\
                                 *self.propag**len(ordered_dressing_nodes)/overcounting
                         
-                        prefactors[key] = (pf.expand(numr=True), factor_ops[1]) 
+                        prefactors[key] = (pf, factor_ops[1]) 
                     
             
             # construct the conjuage diagram.
@@ -1856,7 +1941,7 @@ class HusimiNetwork(Network):
                             +factor_ops[0]*directionality\
                                 /math.factorial(len(dressing_nodes)+1)/overcounting
                         
-                        prefactors[key] = (pf.expand(numr=True), factor_ops[1]) 
+                        prefactors[key] = (pf, factor_ops[1]) 
                     
         
         # construct the conjuage diagram.
